@@ -3,54 +3,55 @@ using UnityEngine;
 
 namespace LevelLens.Runtime.Core
 {
-    public class SessionTelemetryTracker : MonoBehaviour
+    /// <summary>
+    /// Tracks active gameplay playtime, fail counts, and revive counts for the current test run.
+    /// Excludes loading screens, win/fail sequences, and pause screens.
+    /// </summary>
+    public class SessionTelemetryTracker
     {
-        private ILevelLensAdapter _adapter;
-        private int _sessionFails;
-        private int _sessionRevives;
-        private float _activePlaytimeSeconds;
+        private readonly ILevelLensAdapter _adapter;
         private bool _isTrackingPlaytime;
+        private float _activePlaytimeSeconds;
+        private int _failCount;
+        private int _reviveCount;
 
-        public int SessionFails => _sessionFails;
-        public int SessionRevives => _sessionRevives;
+        public int SessionFails => _failCount;
+        public int SessionRevives => _reviveCount;
         public int ActivePlaytimeSeconds => Mathf.RoundToInt(_activePlaytimeSeconds);
+        public float RawPlaytimeSeconds => _activePlaytimeSeconds;
 
-        public void BindAdapter(ILevelLensAdapter adapter)
+        public SessionTelemetryTracker(ILevelLensAdapter adapter)
         {
-            UnbindAdapter();
-            _adapter = adapter;
-            if (_adapter != null)
-            {
-                _adapter.OnLevelReady += HandleLevelReady;
-                _adapter.OnReviveUsed += HandleReviveUsed;
-                _adapter.OnLevelFailed += HandleLevelFailed;
-                _adapter.OnLevelWon += HandleLevelWon;
-            }
+            _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
+
+            _adapter.OnLevelReady += HandleLevelReady;
+            _adapter.OnReviveUsed += HandleReviveUsed;
+            _adapter.OnLevelFailed += HandleLevelFailed;
+            _adapter.OnLevelWon += HandleLevelWon;
         }
 
-        public void UnbindAdapter()
+        public void Dispose()
         {
-            if (_adapter != null)
-            {
-                _adapter.OnLevelReady -= HandleLevelReady;
-                _adapter.OnReviveUsed -= HandleReviveUsed;
-                _adapter.OnLevelFailed -= HandleLevelFailed;
-                _adapter.OnLevelWon -= HandleLevelWon;
-                _adapter = null;
-            }
+            _adapter.OnLevelReady -= HandleLevelReady;
+            _adapter.OnReviveUsed -= HandleReviveUsed;
+            _adapter.OnLevelFailed -= HandleLevelFailed;
+            _adapter.OnLevelWon -= HandleLevelWon;
         }
 
-        private void OnDestroy()
+        public void ResetSession()
         {
-            UnbindAdapter();
-        }
-
-        public void ResetSessionCounters()
-        {
-            _sessionFails = 0;
-            _sessionRevives = 0;
             _activePlaytimeSeconds = 0f;
+            _failCount = 0;
+            _reviveCount = 0;
             _isTrackingPlaytime = false;
+        }
+
+        public void Update(float deltaTime)
+        {
+            if (_isTrackingPlaytime && Time.timeScale > 0f)
+            {
+                _activePlaytimeSeconds += deltaTime;
+            }
         }
 
         private void HandleLevelReady()
@@ -60,27 +61,19 @@ namespace LevelLens.Runtime.Core
 
         private void HandleReviveUsed()
         {
-            _sessionRevives++;
+            _reviveCount++;
             _isTrackingPlaytime = true;
         }
 
         private void HandleLevelFailed()
         {
-            _sessionFails++;
+            _failCount++;
             _isTrackingPlaytime = false;
         }
 
         private void HandleLevelWon()
         {
             _isTrackingPlaytime = false;
-        }
-
-        private void Update()
-        {
-            if (_isTrackingPlaytime && Time.timeScale > 0)
-            {
-                _activePlaytimeSeconds += Time.unscaledDeltaTime;
-            }
         }
     }
 }

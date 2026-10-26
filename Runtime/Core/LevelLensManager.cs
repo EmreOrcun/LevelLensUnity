@@ -1,49 +1,73 @@
 using System;
+using System.IO;
+using System.Collections;
 using UnityEngine;
-using LevelLens.Runtime.Network;
 using LevelLens.Runtime.Media;
+using LevelLens.Runtime.Network;
 using LevelLens.Runtime.UI;
 
 namespace LevelLens.Runtime.Core
 {
     public enum LevelLensStatus
     {
-        auto,       // Active in Editor and Development Builds; Inactive in Release
-        enabled,    // Force Active in all builds (for explicit QA testing in release builds)
+        auto,       // Active in Editor and Development Builds; Dormant in Release
+        enabled,    // Force Active (for explicit QA testing in release builds)
         disabled    // Force Inactive
     }
 
-    [DefaultExecutionOrder(-1000)]
+    /// <summary>
+    /// Drop-in root manager for LevelLens in Unity. Coordinates lifecycle events,
+    /// telemetry tracking, screenshot captures, and report UI presentation.
+    /// </summary>
     public class LevelLensManager : MonoBehaviour
     {
-        public static LevelLensManager Instance { get; private set; }
+        private static LevelLensManager _instance;
+        public static LevelLensManager Instance => _instance;
 
-        [Header("Configuration")]
+        [Header("Tool Status & Credentials")]
         [SerializeField] private LevelLensStatus m_Status = LevelLensStatus.auto;
         [SerializeField] private string m_ApiHost = "https://levellens-api.yourstudio.com";
         [SerializeField] private string m_ApiKey = "ll_live_dev_token";
 
-        [Header("Runtime Subsystems")]
-        [SerializeField] private SessionTelemetryTracker m_Telemetry;
-        [SerializeField] private ScreenshotCapturer m_ScreenshotCapturer;
-        [SerializeField] private VideoRecordingManager m_VideoRecorder;
-        [SerializeField] private R2DirectUploader m_Uploader;
-        [SerializeField] private OfflineDraftCache m_DraftCache;
+        [Header("UI & Presentation")]
         [SerializeField] private LevelLensReviewPanel m_ReviewPanel;
-        [SerializeField] private GameObject m_FloatingButton;
+        [SerializeField] private FloatingToggleButton m_FloatingButton;
+
+        [Header("Capture Settings")]
+        [SerializeField] private int m_ScreenshotWidth = 1920;
+        [SerializeField] private int m_ScreenshotHeight = 1080;
 
         private ILevelLensAdapter _adapter;
+        private SessionTelemetryTracker _telemetryTracker;
+        private string _latestScreenshotPath;
+        private bool _isLevelLensActive;
 
+        public bool IsActive => _isLevelLensActive;
         public ILevelLensAdapter Adapter => _adapter;
-        public SessionTelemetryTracker Telemetry => m_Telemetry;
-        public ScreenshotCapturer ScreenshotCapturer => m_ScreenshotCapturer;
-        public VideoRecordingManager VideoRecorder => m_VideoRecorder;
-        public R2DirectUploader Uploader => m_Uploader;
-        public OfflineDraftCache DraftCache => m_DraftCache;
+        public SessionTelemetryTracker Telemetry => _telemetryTracker;
         public string ApiHost => m_ApiHost;
         public string ApiKey => m_ApiKey;
+        public string LatestScreenshotPath => _latestScreenshotPath;
 
-        public bool IsActive => ShouldActivate();
+        private void Awake()
+        {
+            if (_instance != null && _instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            _instance = this;
+            DontDestroyOnLoad(gameObject);
+
+            if (!ShouldActivate())
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+
+            _isLevelLensActive = true;
+        }
 
         private bool ShouldActivate()
         {
@@ -54,53 +78,73 @@ namespace LevelLens.Runtime.Core
 #endif
         }
 
-        private void Awake()
+        public void BindAdapter(ILevelLensAdapter adapter)
         {
-            if (Instance != null && Instance != this)
+            _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
+            _telemetryTracker = new SessionTelemetryTracker(_adapter);
+
+            _adapter.OnLevelReady += OnLevelReady;
+            _adapter.OnLevelWon += OnLevelWon;
+        }
+
+        private void OnDestroy()
+        {
+            if (_adapter != null)
             {
-                Destroy(gameObject);
-                return;
+                _adapter.OnLevelReady -= OnLevelReady;
+                _adapter.OnLevelWon -= OnLevelWon;
             }
 
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
+            _telemetryTracker?.Dispose();
+        }
 
-            if (!ShouldActivate())
+        private void Update()
+        {
+            if (_telemetryTracker != null)
             {
-                gameObject.SetActive(false);
-                return;
-            }
-
-            _adapter = GetComponentInChildren<ILevelLensAdapter>() ?? GetComponentInParent<ILevelLensAdapter>();
-            if (_adapter == null)
-            {
-                // Fallback search across scene
-                var mono = FindObjectOfType<MonoBehaviour>();
-                if (mono is ILevelLensAdapter found) _adapter = found;
-            }
-
-            if (m_Uploader != null)
-            {
-                m_Uploader.Initialize(m_ApiHost, m_ApiKey);
+                _telemetryTracker.Update(Time.deltaTime);
             }
         }
 
-        public void RegisterAdapter(ILevelLensAdapter adapter)
+        private void OnLevelReady()
         {
-            _adapter = adapter;
-            if (m_Telemetry != null && _adapter != null)
-            {
-                m_Telemetry.BindAdapter(_adapter);
-            }
+            StartCoroutine(CaptureDelayedScreenshot(2.0f));
+        }
+
+        private void OnLevelWon()
+        {
+            OpenReviewPanel();
+        }
+
+        private IEnumerator CaptureDelayedScreenshot(float delaySeconds)
+        {
+            yield return new WaitForSeconds(delaySeconds);
+
+            string fileName = $"thumb_{DateTime.UtcNow.Ticks}.jpg";
+            string dir = Path.Combine(Application.persistentDataPath, "LevelLens", "media");
+            _latestScreenshotPath = Path.Combine(dir, fileName);
+
+            yield return ScreenshotCapturer.CaptureCleanScreenshotCoroutine(
+                Camera.main,
+                m_ScreenshotWidth,
+                m_ScreenshotHeight,
+                _latestScreenshotPath,
+                path =>
+                {
+                    Debug.Log($"[LevelLens] Captured clean gameplay screenshot: {path}");
+                });
+        }
+
+        public void RestartForTesting()
+        {
+            _telemetryTracker?.ResetSession();
+            CloseReviewPanel();
+            _adapter?.RestartLevel();
         }
 
         public void OpenReviewPanel()
         {
-            if (!IsActive) return;
-            if (_adapter != null)
-            {
-                _adapter.SetPaused(true);
-            }
+            _adapter?.SetPaused(true);
             if (m_ReviewPanel != null)
             {
                 m_ReviewPanel.Open();
@@ -113,18 +157,7 @@ namespace LevelLens.Runtime.Core
             {
                 m_ReviewPanel.Close();
             }
-            if (_adapter != null)
-            {
-                _adapter.SetPaused(false);
-            }
-        }
-
-        public void RestartForTesting()
-        {
-            if (_adapter == null) return;
-            m_Telemetry?.ResetSessionCounters();
-            CloseReviewPanel();
-            _adapter.RestartLevel();
+            _adapter?.SetPaused(false);
         }
     }
 }

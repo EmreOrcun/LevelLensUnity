@@ -1,123 +1,140 @@
 using System;
-using System.Collections;
 using System.IO;
 using System.Text;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
 using Newtonsoft.Json;
 
 namespace LevelLens.Runtime.Network
 {
-    public class R2DirectUploader : MonoBehaviour
+    /// <summary>
+    /// Handles requesting presigned URLs from Cloudflare Workers and streaming
+    /// local files directly to R2 using disk-based UploadHandlerFile.
+    /// </summary>
+    public static class R2DirectUploader
     {
-        private string _apiHost;
-        private string _apiKey;
-
-        public void Initialize(string apiHost, string apiKey)
+        public static IEnumerator RequestPresignedUrlCoroutine(
+            string apiHost,
+            string apiKey,
+            string localFilePath,
+            string mediaType,
+            string mimeType,
+            Action<PresignResponseDto> onSuccess,
+            Action<string> onError)
         {
-            _apiHost = apiHost?.TrimEnd('/');
-            _apiKey = apiKey;
-        }
-
-        public IEnumerator RequestPresign(string filePath, string mediaType, string mimeType, Action<PresignResponseDto, string> callback)
-        {
-            if (!File.Exists(filePath))
+            if (!File.Exists(localFilePath))
             {
-                callback?.Invoke(null, $"File does not exist: {filePath}");
+                onError?.Invoke($"Local file not found: {localFilePath}");
                 yield break;
             }
 
-            var fileInfo = new FileInfo(filePath);
+            var fileInfo = new FileInfo(localFilePath);
             var reqDto = new PresignRequestDto
             {
-                fileName = fileInfo.Name,
+                fileName = Path.GetFileName(localFilePath),
                 mediaType = mediaType,
                 mimeType = mimeType,
                 sizeBytes = (int)fileInfo.Length
             };
 
             string json = JsonConvert.SerializeObject(reqDto);
-            string url = $"{_apiHost}/api/upload/presign";
+            string url = $"{apiHost.TrimEnd('/')}/api/upload/presign";
 
-            using (var uwr = new UnityWebRequest(url, "POST"))
+            using var req = new UnityWebRequest(url, "POST");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
+            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+            if (!string.IsNullOrEmpty(apiKey))
             {
-                uwr.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
-                uwr.downloadHandler = new DownloadHandlerBuffer();
-                uwr.SetRequestHeader("Content-Type", "application/json");
-                if (!string.IsNullOrEmpty(_apiKey)) uwr.SetRequestHeader("X-LevelLens-Key", _apiKey);
+                req.SetRequestHeader("X-LevelLens-Key", apiKey);
+            }
 
-                yield return uwr.SendWebRequest();
+            yield return req.SendWebRequest();
 
-                if (uwr.result != UnityWebRequest.Result.Success)
-                {
-                    callback?.Invoke(null, $"Presign request failed: {uwr.error} - {uwr.downloadHandler?.text}");
-                    yield break;
-                }
-
-                try
-                {
-                    var response = JsonConvert.DeserializeObject<PresignResponseDto>(uwr.downloadHandler.text);
-                    callback?.Invoke(response, null);
-                }
-                catch (Exception ex)
-                {
-                    callback?.Invoke(null, $"Failed to parse presign response: {ex.Message}");
-                }
+            if (req.result != UnityWebRequest.Result.Success)
+            {
+                onError?.Invoke($"Presign failed ({req.responseCode}): {req.downloadHandler.text}");
+            }
+            else
+            {
+                var resDto = JsonConvert.DeserializeObject<PresignResponseDto>(req.downloadHandler.text);
+                onSuccess?.Invoke(resDto);
             }
         }
 
-        public IEnumerator UploadFileDirect(string filePath, string uploadUrl, string mimeType, Action<bool, string> callback)
+        public static IEnumerator StreamFileToR2Coroutine(
+            string presignedUploadUrl,
+            string localFilePath,
+            string mimeType,
+            Action<float> onProgress,
+            Action onSuccess,
+            Action<string> onError)
         {
-            if (!File.Exists(filePath))
+            if (!File.Exists(localFilePath))
             {
-                callback?.Invoke(false, "File not found on disk");
+                onError?.Invoke($"Cannot upload missing file: {localFilePath}");
                 yield break;
             }
 
-            using (var uwr = new UnityWebRequest(uploadUrl, "PUT"))
+            using var req = new UnityWebRequest(presignedUploadUrl, "PUT");
+            req.uploadHandler = new UploadHandlerFile(localFilePath);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", mimeType);
+
+            var asyncOp = req.SendWebRequest();
+
+            while (!asyncOp.isDone)
             {
-                uwr.uploadHandler = new UploadHandlerFile(filePath);
-                uwr.downloadHandler = new DownloadHandlerBuffer();
-                uwr.SetRequestHeader("Content-Type", mimeType);
+                onProgress?.Invoke(req.uploadProgress);
+                yield return null;
+            }
 
-                yield return uwr.SendWebRequest();
-
-                if (uwr.result != UnityWebRequest.Result.Success)
-                {
-                    callback?.Invoke(false, $"Upload failed: {uwr.error}");
-                }
-                else
-                {
-                    callback?.Invoke(true, null);
-                }
+            if (req.result != UnityWebRequest.Result.Success)
+            {
+                onError?.Invoke($"Direct R2 upload failed ({req.responseCode}): {req.error}");
+            }
+            else
+            {
+                onProgress?.Invoke(1f);
+                onSuccess?.Invoke();
             }
         }
 
-        public IEnumerator SubmitReport(SubmitReportDto report, Action<bool, string> callback)
+        public static IEnumerator SubmitReportCoroutine(
+            string apiHost,
+            string apiKey,
+            SubmitReportDto report,
+            Action onSuccess,
+            Action<string> onError)
         {
             string json = JsonConvert.SerializeObject(report, new JsonSerializerSettings
             {
                 NullValueHandling = NullValueHandling.Ignore
             });
 
-            string url = $"{_apiHost}/api/reports";
-            using (var uwr = new UnityWebRequest(url, "POST"))
+            string url = $"{apiHost.TrimEnd('/')}/api/reports";
+
+            using var req = new UnityWebRequest(url, "POST");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
+            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+            if (!string.IsNullOrEmpty(apiKey))
             {
-                uwr.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
-                uwr.downloadHandler = new DownloadHandlerBuffer();
-                uwr.SetRequestHeader("Content-Type", "application/json");
-                if (!string.IsNullOrEmpty(_apiKey)) uwr.SetRequestHeader("X-LevelLens-Key", _apiKey);
+                req.SetRequestHeader("X-LevelLens-Key", apiKey);
+            }
 
-                yield return uwr.SendWebRequest();
+            yield return req.SendWebRequest();
 
-                if (uwr.result != UnityWebRequest.Result.Success)
-                {
-                    callback?.Invoke(false, $"Report submit failed: {uwr.error} - {uwr.downloadHandler?.text}");
-                }
-                else
-                {
-                    callback?.Invoke(true, null);
-                }
+            if (req.result != UnityWebRequest.Result.Success)
+            {
+                onError?.Invoke($"Report submission failed ({req.responseCode}): {req.downloadHandler.text}");
+            }
+            else
+            {
+                onSuccess?.Invoke();
             }
         }
     }

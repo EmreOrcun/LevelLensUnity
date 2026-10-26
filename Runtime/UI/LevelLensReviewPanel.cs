@@ -1,13 +1,19 @@
 using System;
+using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using LevelLens.Runtime.Core;
+using LevelLens.Runtime.Media;
 using LevelLens.Runtime.Network;
 
 namespace LevelLens.Runtime.UI
 {
+    /// <summary>
+    /// In-game review menu controller. Handles score rating, difficulty tags,
+    /// bug/feedback items, and initiates R2 uploads.
+    /// </summary>
     public class LevelLensReviewPanel : MonoBehaviour
     {
         [Header("Root Canvas")]
@@ -23,18 +29,23 @@ namespace LevelLens.Runtime.UI
         private int _score = 8;
         private string _difficultyTag = "Medium";
         private readonly List<ReportItemDto> _items = new();
-        private string _capturedScreenshotPath;
-        private string _screenshotR2Key;
+        private bool _isSubmitting;
 
         public void Open()
         {
-            m_PanelRoot.SetActive(true);
-            CaptureThumbnailIfEmpty();
+            if (m_PanelRoot != null)
+            {
+                m_PanelRoot.SetActive(true);
+            }
+            _isSubmitting = false;
         }
 
         public void Close()
         {
-            m_PanelRoot.SetActive(false);
+            if (m_PanelRoot != null)
+            {
+                m_PanelRoot.SetActive(false);
+            }
         }
 
         private void Start()
@@ -46,21 +57,14 @@ namespace LevelLens.Runtime.UI
             if (m_AddFeedbackButton != null) m_AddFeedbackButton.onClick.AddListener(AddFeedbackCard);
         }
 
-        private void CaptureThumbnailIfEmpty()
+        public void SetScore(int score) => _score = Mathf.Clamp(score, 1, 10);
+        public void SetDifficulty(string tag)
         {
-            if (!string.IsNullOrEmpty(_capturedScreenshotPath)) return;
-            var capturer = LevelLensManager.Instance?.ScreenshotCapturer;
-            if (capturer != null)
+            if (tag == "Easy" || tag == "Medium" || tag == "Hard" || tag == "Very Hard")
             {
-                StartCoroutine(capturer.CaptureUIFreeScreenshot(path =>
-                {
-                    _capturedScreenshotPath = path;
-                }));
+                _difficultyTag = tag;
             }
         }
-
-        public void SetScore(int score) => _score = Mathf.Clamp(score, 1, 10);
-        public void SetDifficulty(string tag) => _difficultyTag = tag;
 
         public void AddBugCard()
         {
@@ -98,35 +102,72 @@ namespace LevelLens.Runtime.UI
 
         private void OnSubmitClicked()
         {
+            if (_isSubmitting) return;
+            _isSubmitting = true;
             StartCoroutine(SubmitRoutine());
         }
 
         private IEnumerator SubmitRoutine()
         {
             var manager = LevelLensManager.Instance;
-            if (manager == null || manager.Adapter == null) yield break;
+            if (manager == null || manager.Adapter == null)
+            {
+                _isSubmitting = false;
+                yield break;
+            }
 
             var adapter = manager.Adapter;
-            var uploader = manager.Uploader;
+            string apiHost = manager.ApiHost;
+            string apiKey = manager.ApiKey;
+            string screenshotLocalPath = manager.LatestScreenshotPath;
+            string screenshotKey = "";
 
-            // 1. Upload screenshot if needed
-            if (!string.IsNullOrEmpty(_capturedScreenshotPath) && string.IsNullOrEmpty(_screenshotR2Key))
+            // 1. Upload screenshot if available
+            if (!string.IsNullOrEmpty(screenshotLocalPath) && File.Exists(screenshotLocalPath))
             {
-                bool presignDone = false;
-                uploader.StartCoroutine(uploader.RequestPresign(_capturedScreenshotPath, "image", "image/jpeg", (resp, err) =>
-                {
-                    if (resp != null) _screenshotR2Key = resp.r2Key;
-                    presignDone = true;
-                }));
-                yield return new WaitUntil(() => presignDone);
+                PresignResponseDto presign = null;
+                string presignError = null;
 
-                if (!string.IsNullOrEmpty(_screenshotR2Key))
+                yield return R2DirectUploader.RequestPresignedUrlCoroutine(
+                    apiHost,
+                    apiKey,
+                    screenshotLocalPath,
+                    "image",
+                    "image/jpeg",
+                    res => presign = res,
+                    err => presignError = err
+                );
+
+                if (presignError != null)
                 {
-                    // Presigned upload
-                    // In real flow, upload directly
+                    Debug.LogError($"[LevelLens] Screenshot presign failed: {presignError}");
+                }
+                else if (presign != null)
+                {
+                    bool uploadSuccess = false;
+                    string uploadError = null;
+
+                    yield return R2DirectUploader.StreamFileToR2Coroutine(
+                        presign.uploadUrl,
+                        screenshotLocalPath,
+                        "image/jpeg",
+                        null,
+                        () => uploadSuccess = true,
+                        err => uploadError = err
+                    );
+
+                    if (uploadSuccess)
+                    {
+                        screenshotKey = presign.r2Key;
+                    }
+                    else
+                    {
+                        Debug.LogError($"[LevelLens] Screenshot upload failed: {uploadError}");
+                    }
                 }
             }
 
+            // 2. Build report DTO
             var reportDto = new SubmitReportDto
             {
                 reportId = Guid.NewGuid().ToString(),
@@ -139,27 +180,40 @@ namespace LevelLens.Runtime.UI
                 testerName = "QA Tester",
                 score = _score,
                 difficultyTag = _difficultyTag,
-                screenshotKey = _screenshotR2Key ?? "screenshots/mock_key.jpg",
+                screenshotKey = screenshotKey,
                 reviveCount = manager.Telemetry?.SessionRevives ?? 0,
                 failCount = manager.Telemetry?.SessionFails ?? 0,
                 playtimeSeconds = manager.Telemetry?.ActivePlaytimeSeconds ?? 0,
                 items = _items
             };
 
-            bool submitDone = false;
-            uploader.StartCoroutine(uploader.SubmitReport(reportDto, (success, err) =>
+            // 3. Cache draft in case of network interruption
+            OfflineDraftCache.SaveDraft(reportDto);
+
+            // 4. Submit to REST API
+            bool submitSuccess = false;
+            string submitError = null;
+
+            yield return R2DirectUploader.SubmitReportCoroutine(
+                apiHost,
+                apiKey,
+                reportDto,
+                () => submitSuccess = true,
+                err => submitError = err
+            );
+
+            _isSubmitting = false;
+
+            if (submitSuccess)
             {
-                submitDone = true;
-                if (success)
-                {
-                    Close();
-                }
-                else
-                {
-                    manager.DraftCache?.SaveDraft(reportDto);
-                }
-            }));
-            yield return new WaitUntil(() => submitDone);
+                OfflineDraftCache.RemoveDraft(reportDto.reportId);
+                Close();
+                Debug.Log("[LevelLens] Report submitted successfully!");
+            }
+            else
+            {
+                Debug.LogError($"[LevelLens] Report submission failed: {submitError}. Saved as offline draft.");
+            }
         }
     }
 }
