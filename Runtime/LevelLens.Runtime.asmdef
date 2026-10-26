@@ -1,0 +1,25 @@
+{
+  "name": "LevelLens.Runtime",
+  "rootNamespace": "LevelLens.Runtime",
+  "references": [
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.TextMeshPro",
+    "UnityEngine.UI"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [
+    {
+      "name": "com.unity.recorder",
+      "expression": "2.0.0",
+      "define": "LEVELLENS_RECORDER_SUPPORT"
+    }
+  ],
+  "noEngineReferences": false
+}
