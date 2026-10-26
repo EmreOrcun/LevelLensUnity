@@ -177,87 +177,96 @@ namespace LevelLens.Runtime.Core
         {
             if (!_isLevelLensActive || _adapter == null) return;
 
-            // 1. Floating trigger button if no custom button is assigned
+            Matrix4x4 origMatrix = GUI.matrix;
+            float refWidth = Screen.width < Screen.height ? 720f : 1280f;
+            float scale = Screen.width / refWidth;
+            float virtualWidth = refWidth;
+            float virtualHeight = Screen.height / scale;
+
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1.0f));
+
+            // 1. Floating trigger button
             if (m_FloatingButton == null && !_showGuiReview)
             {
-                float btnW = 90;
-                float btnH = 34;
-                Rect btnRect = new Rect(Screen.width - btnW - 12, 12, btnW, btnH);
-                GUI.backgroundColor = new Color(0.2f, 0.4f, 0.85f, 0.9f);
-                if (GUI.Button(btnRect, "LevelLens"))
+                float btnW = 135;
+                float btnH = 50;
+                Rect btnRect = new Rect(virtualWidth - btnW - 16, 24, btnW, btnH);
+                GUI.backgroundColor = new Color(0.2f, 0.45f, 0.9f, 0.95f);
+                if (GUI.Button(btnRect, "<b><size=18>LevelLens</size></b>"))
                 {
                     OpenReviewPanel();
                 }
                 GUI.backgroundColor = Color.white;
             }
 
-            // 2. Immediate IMGUI review dialog fallback if no custom uGUI panel is bound
+            // 2. Immediate IMGUI review dialog fallback
             if (_showGuiReview && m_ReviewPanel == null)
             {
-                float panelW = Mathf.Min(480, Screen.width - 40);
-                float panelH = Mathf.Min(560, Screen.height - 40);
-                Rect panelRect = new Rect((Screen.width - panelW) * 0.5f, (Screen.height - panelH) * 0.5f, panelW, panelH);
+                float panelW = Mathf.Min(640, virtualWidth - 32);
+                float panelH = Mathf.Min(840, virtualHeight - 48);
+                Rect panelRect = new Rect((virtualWidth - panelW) * 0.5f, (virtualHeight - panelH) * 0.5f, panelW, panelH);
 
                 GUI.Box(panelRect, "");
                 GUILayout.BeginArea(panelRect, GUI.skin.box);
-                GUILayout.Space(6);
+                GUILayout.Space(10);
 
-                GUILayout.Label($"<b><size=16>LevelLens — Review</size></b>", GUILayout.ExpandWidth(true));
-                GUILayout.Label($"<b>Level:</b> {_adapter.CurrentLevelId}  |  <b>Holder:</b> {_adapter.CurrentLevelHolderName}");
+                GUILayout.Label($"<b><size=22>LevelLens — Review</size></b>", GUILayout.ExpandWidth(true));
+                GUILayout.Space(4);
+                GUILayout.Label($"<b><size=15>Level:</size></b> {_adapter.CurrentLevelId}   |   <b><size=15>Holder:</size></b> {_adapter.CurrentLevelHolderName}");
                 if (_telemetryTracker != null)
                 {
-                    GUILayout.Label($"<b>Time:</b> {_telemetryTracker.ActivePlaytimeSeconds:F1}s  |  <b>Fails:</b> {_telemetryTracker.SessionFails}  |  <b>Revives:</b> {_telemetryTracker.SessionRevives}");
+                    GUILayout.Label($"<b><size=15>Time:</size></b> {_telemetryTracker.ActivePlaytimeSeconds:F1}s   |   <b><size=15>Fails:</size></b> {_telemetryTracker.SessionFails}   |   <b><size=15>Revives:</size></b> {_telemetryTracker.SessionRevives}");
                 }
 
-                GUILayout.Space(10);
-                GUILayout.Label($"<b>Score:</b> {_guiScore} / 10");
+                GUILayout.Space(12);
+                GUILayout.Label($"<b><size=16>Score: {_guiScore} / 10</size></b>");
                 GUILayout.BeginHorizontal();
                 for (int i = 1; i <= 10; i++)
                 {
-                    if (GUILayout.Toggle(_guiScore == i, i.ToString(), "Button", GUILayout.Width(38)))
+                    if (GUILayout.Toggle(_guiScore == i, $"<b>{i}</b>", "Button", GUILayout.Height(46), GUILayout.ExpandWidth(true)))
                     {
                         _guiScore = i;
                     }
                 }
                 GUILayout.EndHorizontal();
 
-                GUILayout.Space(10);
-                GUILayout.Label($"<b>Difficulty:</b> {_guiDifficulty}");
+                GUILayout.Space(12);
+                GUILayout.Label($"<b><size=16>Difficulty: {_guiDifficulty}</size></b>");
                 GUILayout.BeginHorizontal();
                 string[] diffs = { "Easy", "Medium", "Hard", "Very Hard" };
                 foreach (var d in diffs)
                 {
-                    if (GUILayout.Toggle(_guiDifficulty == d, d, "Button"))
+                    if (GUILayout.Toggle(_guiDifficulty == d, $"<b>{d}</b>", "Button", GUILayout.Height(44), GUILayout.ExpandWidth(true)))
                     {
                         _guiDifficulty = d;
                     }
                 }
                 GUILayout.EndHorizontal();
 
-                GUILayout.Space(10);
-                GUILayout.Label("<b>Feedback & Bug Notes:</b>");
-                _guiNote = GUILayout.TextArea(_guiNote, GUILayout.Height(65));
+                GUILayout.Space(12);
+                GUILayout.Label("<b><size=16>Feedback & Bug Notes:</size></b>");
+                _guiNote = GUILayout.TextArea(_guiNote, GUILayout.Height(110));
 
                 if (!string.IsNullOrEmpty(_guiSubmitStatus))
                 {
-                    GUILayout.Space(4);
-                    GUILayout.Label($"<color=cyan>{_guiSubmitStatus}</color>");
+                    GUILayout.Space(6);
+                    GUILayout.Label($"<b><size=15><color=cyan>{_guiSubmitStatus}</color></size></b>");
                 }
 
                 GUILayout.FlexibleSpace();
                 GUILayout.BeginHorizontal();
-                if (!_isSubmitting && GUILayout.Button("Restart Test", GUILayout.Height(36)))
+                if (!_isSubmitting && GUILayout.Button("<b>Restart Test</b>", GUILayout.Height(52)))
                 {
                     RestartForTesting();
                 }
 
-                if (!_isSubmitting && GUILayout.Button("Resume Play", GUILayout.Height(36)))
+                if (!_isSubmitting && GUILayout.Button("<b>Resume</b>", GUILayout.Height(52)))
                 {
                     CloseReviewPanel();
                 }
 
-                GUI.backgroundColor = new Color(0.2f, 0.75f, 0.35f);
-                if (!_isSubmitting && GUILayout.Button("Submit to Cloud", GUILayout.Height(36)))
+                GUI.backgroundColor = new Color(0.2f, 0.78f, 0.38f);
+                if (!_isSubmitting && GUILayout.Button("<b>Submit to Cloud</b>", GUILayout.Height(52)))
                 {
                     _isSubmitting = true;
                     _guiSubmitStatus = "Uploading media and saving report...";
@@ -266,9 +275,11 @@ namespace LevelLens.Runtime.Core
                 GUI.backgroundColor = Color.white;
                 GUILayout.EndHorizontal();
 
-                GUILayout.Space(8);
+                GUILayout.Space(10);
                 GUILayout.EndArea();
             }
+
+            GUI.matrix = origMatrix;
         }
 
         private IEnumerator SubmitGuiReportRoutine()
