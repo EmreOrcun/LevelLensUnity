@@ -43,7 +43,7 @@ namespace LevelLens.Runtime.UI
             var manager = LevelLensManager.Instance;
             if (manager == null) return;
 
-            manager.OpenReviewReportMenu();
+            manager.OpenReviewPanel();
         }
     }
 }
