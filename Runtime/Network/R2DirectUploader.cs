@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Collections;
@@ -14,6 +14,37 @@ namespace LevelLens.Runtime.Network
     /// </summary>
     public static class R2DirectUploader
     {
+        public static IEnumerator ValidateTokenCoroutine(
+            string apiHost,
+            string token,
+            Action<string> onSuccess,
+            Action<string> onError)
+        {
+            string url = $"{apiHost.TrimEnd('/')}/api/auth/validate-token";
+            using var req = UnityWebRequest.Get(url);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("X-LevelLens-Token", token);
+
+            yield return req.SendWebRequest();
+
+            if (req.result != UnityWebRequest.Result.Success)
+            {
+                onError?.Invoke($"Invalid token ({req.responseCode}): {req.downloadHandler.text}");
+            }
+            else
+            {
+                try
+                {
+                    var res = JsonConvert.DeserializeObject<ValidateTokenResponseDto>(req.downloadHandler.text);
+                    onSuccess?.Invoke(res?.email ?? "Tester");
+                }
+                catch (Exception ex)
+                {
+                    onError?.Invoke($"Failed to parse token response: {ex.Message}");
+                }
+            }
+        }
+
         public static IEnumerator RequestPresignedUrlCoroutine(
             string apiHost,
             string apiKey,
@@ -48,6 +79,7 @@ namespace LevelLens.Runtime.Network
             req.SetRequestHeader("Content-Type", "application/json");
             if (!string.IsNullOrEmpty(apiKey))
             {
+                req.SetRequestHeader("X-LevelLens-Token", apiKey);
                 req.SetRequestHeader("X-LevelLens-Key", apiKey);
             }
 
@@ -123,6 +155,7 @@ namespace LevelLens.Runtime.Network
             req.SetRequestHeader("Content-Type", "application/json");
             if (!string.IsNullOrEmpty(apiKey))
             {
+                req.SetRequestHeader("X-LevelLens-Token", apiKey);
                 req.SetRequestHeader("X-LevelLens-Key", apiKey);
             }
 

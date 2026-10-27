@@ -70,6 +70,12 @@ namespace LevelLens.Runtime.Core
         private string _guiSubmitStatus = "";
         private Vector2 _cardsScrollPos;
 
+        private string _ingestToken;
+        private string _userEmail;
+        private bool _isValidatingToken;
+        private string _tokenPromptInput = "";
+        private string _tokenPromptError = "";
+
         private readonly List<GuiCardModel> _guiCards = new List<GuiCardModel>();
 
         public bool IsActive => _isLevelLensActive;
@@ -558,6 +564,7 @@ namespace LevelLens.Runtime.Core
 
         private IEnumerator SubmitGuiReportRoutine()
         {
+            string effectiveKey = !string.IsNullOrEmpty(_ingestToken) ? _ingestToken : m_ApiKey;
             string screenshotKey = "";
 
             if (!string.IsNullOrEmpty(_latestScreenshotPath) && File.Exists(_latestScreenshotPath))
@@ -565,7 +572,7 @@ namespace LevelLens.Runtime.Core
                 PresignResponseDto presign = null;
                 yield return R2DirectUploader.RequestPresignedUrlCoroutine(
                     m_ApiHost,
-                    m_ApiKey,
+                    effectiveKey,
                     _latestScreenshotPath,
                     "image",
                     "image/jpeg",
@@ -599,7 +606,7 @@ namespace LevelLens.Runtime.Core
                     PresignResponseDto vidPresign = null;
                     yield return R2DirectUploader.RequestPresignedUrlCoroutine(
                         m_ApiHost,
-                        m_ApiKey,
+                        effectiveKey,
                         card.attachedVideoPath,
                         "video",
                         "video/mp4",
@@ -649,7 +656,7 @@ namespace LevelLens.Runtime.Core
                     PresignResponseDto imgPresign = null;
                     yield return R2DirectUploader.RequestPresignedUrlCoroutine(
                         m_ApiHost,
-                        m_ApiKey,
+                        effectiveKey,
                         card.attachedImagePath,
                         "image",
                         mime,
@@ -723,7 +730,7 @@ namespace LevelLens.Runtime.Core
                 holderName = _adapter.CurrentLevelHolderName,
                 levelName = _adapter.CurrentLevelId,
                 levelIndex = _adapter.CurrentLevelIndex,
-                testerName = string.IsNullOrWhiteSpace(_testerName) ? "Tester" : _testerName.Trim(),
+                testerName = !string.IsNullOrEmpty(_userEmail) ? _userEmail : (string.IsNullOrWhiteSpace(_testerName) ? "Tester" : _testerName.Trim()),
                 score = _guiScore,
                 difficultyTag = _guiDifficulty,
                 screenshotKey = screenshotKey,
@@ -739,7 +746,7 @@ namespace LevelLens.Runtime.Core
 
             yield return R2DirectUploader.SubmitReportCoroutine(
                 m_ApiHost,
-                m_ApiKey,
+                effectiveKey,
                 reportDto,
                 () => success = true,
                 err => error = err

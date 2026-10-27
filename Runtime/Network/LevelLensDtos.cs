@@ -4,6 +4,12 @@ using System.Collections.Generic;
 namespace LevelLens.Runtime.Network
 {
     [Serializable]
+    public class ValidateTokenResponseDto
+    {
+        public string email;
+    }
+
+    [Serializable]
     public class ReportAttachmentDto
     {
         public string r2Key;
