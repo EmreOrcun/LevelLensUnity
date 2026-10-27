@@ -140,7 +140,7 @@ namespace LevelLens.Runtime.Core
 
         private void OnLevelReady()
         {
-            StartCoroutine(CaptureDelayedScreenshot(2.0f));
+            StartCoroutine(CaptureDelayedScreenshot(1.0f));
         }
 
         private void OnLevelWon()
