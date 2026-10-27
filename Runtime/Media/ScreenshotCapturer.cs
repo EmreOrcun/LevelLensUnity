@@ -9,9 +9,28 @@ namespace LevelLens.Runtime.Media
     /// <summary>
     /// Captures UI-free gameplay screenshots by temporarily hiding root canvases
     /// and rendering the active Camera into a temporary RenderTexture.
+    /// Preserves the game's native aspect ratio (portrait or landscape).
     /// </summary>
     public static class ScreenshotCapturer
     {
+        public static void CalculateAspectDimensions(int maxDimension, out int width, out int height)
+        {
+            int screenW = Screen.width > 0 ? Screen.width : 1080;
+            int screenH = Screen.height > 0 ? Screen.height : 1920;
+
+            if (screenW > maxDimension || screenH > maxDimension)
+            {
+                float scale = (float)maxDimension / Mathf.Max(screenW, screenH);
+                width = Mathf.Max(1, Mathf.RoundToInt(screenW * scale));
+                height = Mathf.Max(1, Mathf.RoundToInt(screenH * scale));
+            }
+            else
+            {
+                width = screenW;
+                height = screenH;
+            }
+        }
+
         public static IEnumerator CaptureCleanScreenshotCoroutine(
             Camera targetCamera,
             int targetWidth,
@@ -27,6 +46,11 @@ namespace LevelLens.Runtime.Media
             if (targetCamera == null)
             {
                 throw new InvalidOperationException("No camera available to capture clean screenshot.");
+            }
+
+            if (targetWidth <= 0 || targetHeight <= 0)
+            {
+                CalculateAspectDimensions(1080, out targetWidth, out targetHeight);
             }
 
             var hiddenCanvases = new List<Canvas>();
@@ -57,6 +81,7 @@ namespace LevelLens.Runtime.Media
                 screenShot.Apply();
 
                 targetCamera.targetTexture = null;
+                targetCamera.ResetAspect();
                 RenderTexture.active = null;
 
                 byte[] bytes = screenShot.EncodeToJPG(85);
@@ -74,6 +99,7 @@ namespace LevelLens.Runtime.Media
                 if (targetCamera != null)
                 {
                     targetCamera.targetTexture = null;
+                    targetCamera.ResetAspect();
                 }
                 RenderTexture.active = null;
 

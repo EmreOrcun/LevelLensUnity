@@ -55,8 +55,7 @@ namespace LevelLens.Runtime.Core
         [SerializeField] private FloatingToggleButton m_FloatingButton;
 
         [Header("Capture Settings")]
-        [SerializeField] private int m_ScreenshotWidth = 1920;
-        [SerializeField] private int m_ScreenshotHeight = 1080;
+        [SerializeField] private int m_MaxScreenshotDimension = 1080;
 
         private ILevelLensAdapter _adapter;
         private SessionTelemetryTracker _telemetryTracker;
@@ -158,14 +157,16 @@ namespace LevelLens.Runtime.Core
             string dir = Path.Combine(Application.persistentDataPath, "LevelLens", "media");
             _latestScreenshotPath = Path.Combine(dir, fileName);
 
+            ScreenshotCapturer.CalculateAspectDimensions(m_MaxScreenshotDimension, out int targetW, out int targetH);
+
             yield return ScreenshotCapturer.CaptureCleanScreenshotCoroutine(
                 Camera.main,
-                m_ScreenshotWidth,
-                m_ScreenshotHeight,
+                targetW,
+                targetH,
                 _latestScreenshotPath,
                 path =>
                 {
-                    Debug.Log($"[LevelLens] Captured clean gameplay screenshot: {path}");
+                    Debug.Log($"[LevelLens] Captured clean gameplay screenshot ({targetW}x{targetH}): {path}");
                 });
         }
 
