@@ -16,6 +16,7 @@ namespace LevelLens.Runtime.Core
         event Action OnLevelReady;
         event Action OnLevelWon;
         event Action OnLevelFailed;
+        event Action OnLevelRestarted;
         event Action OnReviveUsed;
     }
 }

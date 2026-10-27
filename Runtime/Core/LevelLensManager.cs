@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
@@ -307,7 +307,7 @@ namespace LevelLens.Runtime.Core
                 GUILayout.Label($"<b><size=15>Level:</size></b> {_adapter.CurrentLevelId}   |   <b><size=15>Holder:</size></b> {_adapter.CurrentLevelHolderName}");
                 if (_telemetryTracker != null)
                 {
-                    GUILayout.Label($"<b><size=15>Time:</size></b> {_telemetryTracker.ActivePlaytimeSeconds:F1}s   |   <b><size=15>Fails:</size></b> {_telemetryTracker.SessionFails}   |   <b><size=15>Revives:</size></b> {_telemetryTracker.SessionRevives}");
+                    GUILayout.Label($"<b><size=15>Time:</size></b> {_telemetryTracker.ActivePlaytimeSeconds:F1}s   |   <b><size=15>Restarts:</size></b> {_telemetryTracker.SessionRestarts}   |   <b><size=15>Fails:</size></b> {_telemetryTracker.SessionFails}   |   <b><size=15>Revives:</size></b> {_telemetryTracker.SessionRevives}");
                 }
 
                 GUILayout.Space(8);
@@ -729,6 +729,7 @@ namespace LevelLens.Runtime.Core
                 screenshotKey = screenshotKey,
                 reviveCount = _telemetryTracker?.SessionRevives ?? 0,
                 failCount = _telemetryTracker?.SessionFails ?? 0,
+                restartCount = _telemetryTracker?.SessionRestarts ?? 0,
                 playtimeSeconds = _telemetryTracker?.ActivePlaytimeSeconds ?? 0,
                 items = items
             };

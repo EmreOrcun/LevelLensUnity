@@ -41,6 +41,7 @@ namespace LevelLens.Runtime.Network
         public string screenshotKey;        // Presigned R2 key
         public int reviveCount;             // Session telemetry
         public int failCount;               // Session telemetry
+        public int restartCount;            // Session telemetry
         public int playtimeSeconds;         // Session telemetry
         public List<ReportItemDto> items;   // Max 10 items
     }
