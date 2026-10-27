@@ -76,6 +76,7 @@ namespace LevelLens.Runtime.Core
         private string _loginPasswordInput = "";
         private string _loginError = "";
         private bool _isLoggingIn;
+        private bool _showLoginDialog;
 
         private readonly List<GuiCardModel> _guiCards = new List<GuiCardModel>();
 
@@ -106,6 +107,12 @@ namespace LevelLens.Runtime.Core
 
             _isLevelLensActive = true;
             _testerName = PlayerPrefs.GetString("LevelLens_TesterName", "Tester");
+            _authToken = PlayerPrefs.GetString("LevelLens_AuthToken", "");
+            _userEmail = PlayerPrefs.GetString("LevelLens_UserEmail", "");
+            if (!string.IsNullOrEmpty(_userEmail))
+            {
+                _loginEmailInput = _userEmail;
+            }
         }
 
         private bool ShouldActivate()
@@ -186,6 +193,13 @@ namespace LevelLens.Runtime.Core
 
         public void OpenReviewPanel()
         {
+            if (string.IsNullOrEmpty(_authToken))
+            {
+                _showLoginDialog = true;
+                _loginError = "";
+                return;
+            }
+
             _adapter?.SetPaused(true);
             if (m_ReviewPanel != null)
             {
@@ -247,7 +261,7 @@ namespace LevelLens.Runtime.Core
             GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1.0f));
 
             // 1. Floating trigger button with stateful ON/OFF status
-            if (m_FloatingButton == null && !_showGuiReview)
+            if (m_FloatingButton == null && !_showGuiReview && !_showLoginDialog)
             {
                 float btnW = 160;
                 float btnH = 50;
@@ -266,10 +280,78 @@ namespace LevelLens.Runtime.Core
                     GUI.backgroundColor = new Color(0.28f, 0.33f, 0.41f, 0.9f); // Slate gray
                     if (GUI.Button(btnRect, "<b><size=16>LevelLens [OFF]</size></b>"))
                     {
-                        _isSessionActive = true;
+                        if (string.IsNullOrEmpty(_authToken))
+                        {
+                            _showLoginDialog = true;
+                            _loginError = "";
+                        }
+                        else
+                        {
+                            _isSessionActive = true;
+                        }
                     }
                 }
                 GUI.backgroundColor = Color.white;
+            }
+
+            // 2. Sign In Dialog
+            if (_showLoginDialog)
+            {
+                float dialogW = Mathf.Min(480, virtualWidth - 32);
+                float dialogH = 340;
+                Rect dialogRect = new Rect((virtualWidth - dialogW) * 0.5f, (virtualHeight - dialogH) * 0.5f, dialogW, dialogH);
+
+                GUI.Box(dialogRect, "");
+                GUILayout.BeginArea(dialogRect, GUI.skin.box);
+                GUILayout.Space(12);
+
+                GUILayout.Label("<b><size=22>LevelLens — Sign In</size></b>");
+                GUILayout.Space(4);
+                GUILayout.Label("<size=13>Enter your credentials to record and submit playtest sessions.</size>");
+                GUILayout.Space(14);
+
+                GUILayout.Label("<b><size=14>Email:</size></b>");
+                _loginEmailInput = GUILayout.TextField(_loginEmailInput ?? "", 80, GUILayout.Height(32));
+
+                GUILayout.Space(8);
+                GUILayout.Label("<b><size=14>Password:</size></b>");
+                _loginPasswordInput = GUILayout.PasswordField(_loginPasswordInput ?? "", '*', 80, GUILayout.Height(32));
+
+                if (!string.IsNullOrEmpty(_loginError))
+                {
+                    GUILayout.Space(6);
+                    GUILayout.Label($"<b><size=13><color=#ff4d4f>{_loginError}</color></size></b>");
+                }
+
+                GUILayout.FlexibleSpace();
+
+                GUILayout.BeginHorizontal();
+                GUI.backgroundColor = new Color(0.4f, 0.4f, 0.4f, 0.9f);
+                if (GUILayout.Button("<b>Cancel</b>", GUILayout.Height(40), GUILayout.Width(100)))
+                {
+                    _showLoginDialog = false;
+                    _loginError = "";
+                }
+
+                bool canSubmit = !_isLoggingIn && !string.IsNullOrWhiteSpace(_loginEmailInput) && !string.IsNullOrEmpty(_loginPasswordInput);
+                GUI.backgroundColor = canSubmit
+                    ? new Color(0.13f, 0.77f, 0.37f, 0.95f)
+                    : Color.gray;
+
+                string btnText = _isLoggingIn ? "<b>Signing In...</b>" : "<b>Sign In</b>";
+
+                if (GUILayout.Button(btnText, GUILayout.Height(40), GUILayout.ExpandWidth(true)) && canSubmit)
+                {
+                    StartCoroutine(ExecuteLoginRoutine());
+                }
+                GUI.backgroundColor = Color.white;
+                GUILayout.EndHorizontal();
+
+                GUILayout.Space(8);
+                GUILayout.EndArea();
+
+                GUI.matrix = origMatrix;
+                return;
             }
 
             // 2. Immediate IMGUI review dialog fallback
@@ -299,14 +381,28 @@ namespace LevelLens.Runtime.Core
                 GUI.backgroundColor = Color.white;
                 GUILayout.EndHorizontal();
 
-                // Tester Name row
+                // Authenticated user row (concealed role)
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("<b><size=15>Tester Name:</size></b>", GUILayout.Width(110));
-                string newTesterName = GUILayout.TextField(_testerName, 60, GUILayout.Width(220));
-                if (newTesterName != _testerName)
+                string displayUser = !string.IsNullOrEmpty(_userEmail) ? _userEmail : "Unauthenticated";
+                GUILayout.Label($"<b><size=15>User:</size></b> {displayUser}", GUILayout.ExpandWidth(true));
+                if (!string.IsNullOrEmpty(_authToken))
                 {
-                    _testerName = newTesterName;
-                    PlayerPrefs.SetString("LevelLens_TesterName", _testerName);
+                    GUI.backgroundColor = new Color(0.85f, 0.32f, 0.32f, 0.95f);
+                    if (GUILayout.Button("<b>Log Out</b>", GUILayout.Height(28), GUILayout.Width(90)))
+                    {
+                        _authToken = "";
+                        _userEmail = "";
+                        PlayerPrefs.DeleteKey("LevelLens_AuthToken");
+                        PlayerPrefs.DeleteKey("LevelLens_UserEmail");
+                        PlayerPrefs.Save();
+                        DeactivateSession();
+                        GUI.backgroundColor = Color.white;
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndArea();
+                        GUI.matrix = origMatrix;
+                        return;
+                    }
+                    GUI.backgroundColor = Color.white;
                 }
                 GUILayout.EndHorizontal();
 
@@ -768,6 +864,53 @@ namespace LevelLens.Runtime.Core
                 _guiSubmitStatus = $"Saved offline ({error})";
                 yield return new WaitForSecondsRealtime(1.2f);
                 CloseReviewPanel();
+            }
+        }
+
+        private IEnumerator ExecuteLoginRoutine()
+        {
+            _isLoggingIn = true;
+            _loginError = "";
+
+            string email = _loginEmailInput.Trim().ToLower();
+            string pass = _loginPasswordInput;
+
+            bool success = false;
+            string tokenResult = null;
+            string emailResult = null;
+            string errorResult = null;
+
+            yield return R2DirectUploader.LoginCoroutine(
+                m_ApiHost,
+                email,
+                pass,
+                (token, userEmail) =>
+                {
+                    success = true;
+                    tokenResult = token;
+                    emailResult = userEmail;
+                },
+                err => errorResult = err
+            );
+
+            _isLoggingIn = false;
+
+            if (success && !string.IsNullOrEmpty(tokenResult))
+            {
+                _authToken = tokenResult;
+                _userEmail = emailResult;
+                PlayerPrefs.SetString("LevelLens_AuthToken", _authToken);
+                PlayerPrefs.SetString("LevelLens_UserEmail", _userEmail);
+                PlayerPrefs.Save();
+
+                _showLoginDialog = false;
+                _loginPasswordInput = "";
+                _loginError = "";
+                _isSessionActive = true;
+            }
+            else
+            {
+                _loginError = errorResult ?? "Sign in failed.";
             }
         }
     }
