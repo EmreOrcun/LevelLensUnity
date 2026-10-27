@@ -4,6 +4,12 @@ using System.Collections.Generic;
 namespace LevelLens.Runtime.Network
 {
     [Serializable]
+    public class ErrorResponseDto
+    {
+        public string error;
+    }
+
+    [Serializable]
     public class LoginRequestDto
     {
         public string email;

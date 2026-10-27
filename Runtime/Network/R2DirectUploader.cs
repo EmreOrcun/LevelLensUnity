@@ -42,8 +42,8 @@ namespace LevelLens.Runtime.Network
                 string errMsg = "Invalid email or password.";
                 try
                 {
-                    var errObj = JsonConvert.DeserializeObject<dynamic>(req.downloadHandler.text);
-                    if (errObj != null && errObj.error != null) errMsg = (string)errObj.error;
+                    var errObj = JsonConvert.DeserializeObject<ErrorResponseDto>(req.downloadHandler.text);
+                    if (errObj != null && !string.IsNullOrEmpty(errObj.error)) errMsg = errObj.error;
                 }
                 catch { }
                 onError?.Invoke(errMsg);
