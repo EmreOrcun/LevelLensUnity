@@ -70,11 +70,12 @@ namespace LevelLens.Runtime.Core
         private string _guiSubmitStatus = "";
         private Vector2 _cardsScrollPos;
 
-        private string _ingestToken;
+        private string _authToken;
         private string _userEmail;
-        private bool _isValidatingToken;
-        private string _tokenPromptInput = "";
-        private string _tokenPromptError = "";
+        private string _loginEmailInput = "";
+        private string _loginPasswordInput = "";
+        private string _loginError = "";
+        private bool _isLoggingIn;
 
         private readonly List<GuiCardModel> _guiCards = new List<GuiCardModel>();
 
@@ -564,7 +565,7 @@ namespace LevelLens.Runtime.Core
 
         private IEnumerator SubmitGuiReportRoutine()
         {
-            string effectiveKey = !string.IsNullOrEmpty(_ingestToken) ? _ingestToken : m_ApiKey;
+            string effectiveKey = !string.IsNullOrEmpty(_authToken) ? _authToken : m_ApiKey;
             string screenshotKey = "";
 
             if (!string.IsNullOrEmpty(_latestScreenshotPath) && File.Exists(_latestScreenshotPath))

@@ -4,6 +4,28 @@ using System.Collections.Generic;
 namespace LevelLens.Runtime.Network
 {
     [Serializable]
+    public class LoginRequestDto
+    {
+        public string email;
+        public string password;
+    }
+
+    [Serializable]
+    public class AuthUserDto
+    {
+        public string id;
+        public string email;
+        public string role;
+    }
+
+    [Serializable]
+    public class LoginResponseDto
+    {
+        public string token;
+        public AuthUserDto user;
+    }
+
+    [Serializable]
     public class ValidateTokenResponseDto
     {
         public string email;

@@ -14,33 +14,57 @@ namespace LevelLens.Runtime.Network
     /// </summary>
     public static class R2DirectUploader
     {
-        public static IEnumerator ValidateTokenCoroutine(
+        public static IEnumerator LoginCoroutine(
             string apiHost,
-            string token,
-            Action<string> onSuccess,
+            string email,
+            string password,
+            Action<string, string> onSuccess,
             Action<string> onError)
         {
-            string url = $"{apiHost.TrimEnd('/')}/api/auth/validate-token";
-            using var req = UnityWebRequest.Get(url);
+            string url = $"{apiHost.TrimEnd('/')}/api/auth/login";
+            var reqDto = new LoginRequestDto
+            {
+                email = email.Trim().ToLower(),
+                password = password
+            };
+
+            string json = JsonConvert.SerializeObject(reqDto);
+            using var req = new UnityWebRequest(url, "POST");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
+            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
             req.downloadHandler = new DownloadHandlerBuffer();
-            req.SetRequestHeader("X-LevelLens-Token", token);
+            req.SetRequestHeader("Content-Type", "application/json");
 
             yield return req.SendWebRequest();
 
             if (req.result != UnityWebRequest.Result.Success)
             {
-                onError?.Invoke($"Invalid token ({req.responseCode}): {req.downloadHandler.text}");
+                string errMsg = "Invalid email or password.";
+                try
+                {
+                    var errObj = JsonConvert.DeserializeObject<dynamic>(req.downloadHandler.text);
+                    if (errObj != null && errObj.error != null) errMsg = (string)errObj.error;
+                }
+                catch { }
+                onError?.Invoke(errMsg);
             }
             else
             {
                 try
                 {
-                    var res = JsonConvert.DeserializeObject<ValidateTokenResponseDto>(req.downloadHandler.text);
-                    onSuccess?.Invoke(res?.email ?? "Tester");
+                    var res = JsonConvert.DeserializeObject<LoginResponseDto>(req.downloadHandler.text);
+                    if (res != null && !string.IsNullOrEmpty(res.token))
+                    {
+                        onSuccess?.Invoke(res.token, res.user?.email ?? email);
+                    }
+                    else
+                    {
+                        onError?.Invoke("Malformed login response.");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    onError?.Invoke($"Failed to parse token response: {ex.Message}");
+                    onError?.Invoke($"Failed to parse login response: {ex.Message}");
                 }
             }
         }
@@ -79,7 +103,7 @@ namespace LevelLens.Runtime.Network
             req.SetRequestHeader("Content-Type", "application/json");
             if (!string.IsNullOrEmpty(apiKey))
             {
-                req.SetRequestHeader("X-LevelLens-Token", apiKey);
+                req.SetRequestHeader("Authorization", $"Bearer {apiKey}");
                 req.SetRequestHeader("X-LevelLens-Key", apiKey);
             }
 
@@ -155,7 +179,7 @@ namespace LevelLens.Runtime.Network
             req.SetRequestHeader("Content-Type", "application/json");
             if (!string.IsNullOrEmpty(apiKey))
             {
-                req.SetRequestHeader("X-LevelLens-Token", apiKey);
+                req.SetRequestHeader("Authorization", $"Bearer {apiKey}");
                 req.SetRequestHeader("X-LevelLens-Key", apiKey);
             }
 
