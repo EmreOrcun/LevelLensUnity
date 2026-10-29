@@ -377,17 +377,24 @@ namespace LevelLens.Runtime.Core
                 float panelH = Mathf.Min(900, virtualHeight - 48);
                 Rect panelRect = new Rect((virtualWidth - panelW) * 0.5f, (virtualHeight - panelH) * 0.5f, panelW, panelH);
 
+                Color prevColor = GUI.color;
+                GUI.color = new Color(0f, 0f, 0f, 0.75f);
+                GUI.DrawTexture(new Rect(0, 0, virtualWidth, virtualHeight), Texture2D.whiteTexture);
+                GUI.color = new Color(0.10f, 0.12f, 0.16f, 0.98f);
+                GUI.DrawTexture(panelRect, Texture2D.whiteTexture);
+                GUI.color = prevColor;
+
                 GUI.Box(panelRect, "");
                 GUILayout.BeginArea(panelRect, GUI.skin.box);
                 GUILayout.Space(8);
 
-                // Header with Title and Deactivate button
+                // Header with Title and Resume button
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("<b><size=22>LevelLens — Review</size></b>", GUILayout.ExpandWidth(true));
-                GUI.backgroundColor = new Color(0.85f, 0.32f, 0.32f, 0.95f);
-                if (GUILayout.Button("<b>Deactivate [Turn OFF]</b>", GUILayout.Height(36), GUILayout.Width(170)))
+                GUI.backgroundColor = new Color(0.35f, 0.65f, 0.95f, 0.95f);
+                if (GUILayout.Button("<b>Resume</b>", GUILayout.Height(34), GUILayout.Width(170)))
                 {
-                    DeactivateSession();
+                    CloseReviewPanel();
                     GUI.backgroundColor = Color.white;
                     GUILayout.EndHorizontal();
                     GUILayout.EndArea();
@@ -397,14 +404,14 @@ namespace LevelLens.Runtime.Core
                 GUI.backgroundColor = Color.white;
                 GUILayout.EndHorizontal();
 
-                // Authenticated user row (concealed role)
+                // Authenticated user row with Log Out and Deactivate buttons
                 GUILayout.BeginHorizontal();
                 string displayUser = !string.IsNullOrEmpty(_userEmail) ? _userEmail : "Unauthenticated";
-                GUILayout.Label($"<b><size=15>User:</size></b> {displayUser}", GUILayout.ExpandWidth(true));
+                GUILayout.Label($"<b><size=14>User:</size></b> {displayUser}", GUILayout.ExpandWidth(true));
                 if (!string.IsNullOrEmpty(_authToken))
                 {
                     GUI.backgroundColor = new Color(0.85f, 0.32f, 0.32f, 0.95f);
-                    if (GUILayout.Button("<b>Log Out</b>", GUILayout.Height(28), GUILayout.Width(90)))
+                    if (GUILayout.Button("<b>Log Out</b>", GUILayout.Height(30), GUILayout.Width(85)))
                     {
                         _authToken = "";
                         _userEmail = "";
@@ -420,6 +427,18 @@ namespace LevelLens.Runtime.Core
                     }
                     GUI.backgroundColor = Color.white;
                 }
+
+                GUI.backgroundColor = new Color(0.85f, 0.32f, 0.32f, 0.95f);
+                if (GUILayout.Button("<b>Deactivate [Turn OFF]</b>", GUILayout.Height(30), GUILayout.Width(170)))
+                {
+                    DeactivateSession();
+                    GUI.backgroundColor = Color.white;
+                    GUILayout.EndHorizontal();
+                    GUILayout.EndArea();
+                    GUI.matrix = origMatrix;
+                    return;
+                }
+                GUI.backgroundColor = Color.white;
                 GUILayout.EndHorizontal();
 
                 GUILayout.Space(4);
@@ -480,7 +499,9 @@ namespace LevelLens.Runtime.Core
                 GUILayout.Space(6);
 
                 // Scrollable Cards Area
-                _cardsScrollPos = GUILayout.BeginScrollView(_cardsScrollPos, GUILayout.Height(320));
+                float nonScrollableHeight = string.IsNullOrEmpty(_guiSubmitStatus) ? 360f : 390f;
+                float scrollHeight = Mathf.Max(320f, panelH - nonScrollableHeight);
+                _cardsScrollPos = GUILayout.BeginScrollView(_cardsScrollPos, GUILayout.Height(scrollHeight));
                 for (int i = 0; i < _guiCards.Count; i++)
                 {
                     var card = _guiCards[i];
@@ -651,11 +672,6 @@ namespace LevelLens.Runtime.Core
                 if (!_isSubmitting && GUILayout.Button("<b>Restart Test</b>", GUILayout.Height(48)))
                 {
                     RestartForTesting();
-                }
-
-                if (!_isSubmitting && GUILayout.Button("<b>Resume</b>", GUILayout.Height(48)))
-                {
-                    CloseReviewPanel();
                 }
 
                 GUI.backgroundColor = new Color(0.2f, 0.78f, 0.38f);
