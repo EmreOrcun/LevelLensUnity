@@ -388,11 +388,11 @@ namespace LevelLens.Runtime.Core
                 GUILayout.BeginArea(panelRect, GUI.skin.box);
                 GUILayout.Space(8);
 
-                // Header with Title and Resume button
+                // Header with Title and Close (X) button
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("<b><size=22>LevelLens — Review</size></b>", GUILayout.ExpandWidth(true));
-                GUI.backgroundColor = new Color(0.35f, 0.65f, 0.95f, 0.95f);
-                if (GUILayout.Button("<b>Resume</b>", GUILayout.Height(34), GUILayout.Width(170)))
+                GUI.backgroundColor = new Color(0.85f, 0.32f, 0.32f, 0.95f);
+                if (GUILayout.Button("<b><size=20>✕</size></b>", GUILayout.Height(34), GUILayout.Width(44)))
                 {
                     CloseReviewPanel();
                     GUI.backgroundColor = Color.white;
@@ -499,8 +499,8 @@ namespace LevelLens.Runtime.Core
                 GUILayout.Space(6);
 
                 // Scrollable Cards Area
-                float nonScrollableHeight = string.IsNullOrEmpty(_guiSubmitStatus) ? 360f : 390f;
-                float scrollHeight = Mathf.Max(320f, panelH - nonScrollableHeight);
+                float nonScrollableHeight = string.IsNullOrEmpty(_guiSubmitStatus) ? 510f : 540f;
+                float scrollHeight = Mathf.Clamp(panelH - nonScrollableHeight, 200f, 380f);
                 _cardsScrollPos = GUILayout.BeginScrollView(_cardsScrollPos, GUILayout.Height(scrollHeight));
                 for (int i = 0; i < _guiCards.Count; i++)
                 {
