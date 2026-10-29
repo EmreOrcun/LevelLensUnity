@@ -314,8 +314,15 @@ namespace LevelLens.Runtime.Core
             if (_showLoginDialog)
             {
                 float dialogW = Mathf.Min(480, virtualWidth - 32);
-                float dialogH = 340;
+                float dialogH = 370;
                 Rect dialogRect = new Rect((virtualWidth - dialogW) * 0.5f, (virtualHeight - dialogH) * 0.5f, dialogW, dialogH);
+
+                Color prevColor = GUI.color;
+                GUI.color = new Color(0f, 0f, 0f, 0.75f);
+                GUI.DrawTexture(new Rect(0, 0, virtualWidth, virtualHeight), Texture2D.whiteTexture);
+                GUI.color = new Color(0.10f, 0.12f, 0.16f, 0.98f);
+                GUI.DrawTexture(dialogRect, Texture2D.whiteTexture);
+                GUI.color = prevColor;
 
                 GUI.Box(dialogRect, "");
                 GUILayout.BeginArea(dialogRect, GUI.skin.box);
@@ -332,6 +339,13 @@ namespace LevelLens.Runtime.Core
                 GUILayout.Space(8);
                 GUILayout.Label("<b><size=14>Password:</size></b>");
                 _loginPasswordInput = GUILayout.PasswordField(_loginPasswordInput ?? "", '*', 80, GUILayout.Height(32));
+
+                GUILayout.Space(6);
+                string webAppUrl = !string.IsNullOrEmpty(m_ApiHost) ? m_ApiHost : "https://levellens.creoapp.workers.dev";
+                if (GUILayout.Button($"<b><size=13><color=#60a5fa>Open Web App ({webAppUrl}) ↗</color></size></b>", GUI.skin.label))
+                {
+                    Application.OpenURL(webAppUrl);
+                }
 
                 if (!string.IsNullOrEmpty(_loginError))
                 {
