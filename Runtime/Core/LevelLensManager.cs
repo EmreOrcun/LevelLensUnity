@@ -499,8 +499,8 @@ namespace LevelLens.Runtime.Core
                 GUILayout.Space(6);
 
                 // Scrollable Cards Area
-                float nonScrollableHeight = string.IsNullOrEmpty(_guiSubmitStatus) ? 510f : 540f;
-                float scrollHeight = Mathf.Clamp(panelH - nonScrollableHeight, 200f, 380f);
+                float nonScrollableHeight = string.IsNullOrEmpty(_guiSubmitStatus) ? 440f : 470f;
+                float scrollHeight = Mathf.Clamp(panelH - nonScrollableHeight, 200f, 460f);
                 _cardsScrollPos = GUILayout.BeginScrollView(_cardsScrollPos, GUILayout.Height(scrollHeight));
                 for (int i = 0; i < _guiCards.Count; i++)
                 {
