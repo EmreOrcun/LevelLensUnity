@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
@@ -60,6 +60,7 @@ namespace LevelLens.Runtime.Core
         private ILevelLensAdapter _adapter;
         private SessionTelemetryTracker _telemetryTracker;
         private string _latestScreenshotPath;
+        private Coroutine _screenshotCoroutine;
         private bool _isLevelLensActive;
         private bool _isSessionActive = false;
         private bool _showGuiReview;
@@ -127,7 +128,7 @@ namespace LevelLens.Runtime.Core
         public void BindAdapter(ILevelLensAdapter adapter)
         {
             _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
-            _telemetryTracker = new SessionTelemetryTracker(_adapter);
+            _telemetryTracker = new SessionTelemetryTracker(_adapter, () => _isSessionActive);
 
             _adapter.OnLevelReady += OnLevelReady;
             _adapter.OnLevelWon += OnLevelWon;
@@ -146,7 +147,7 @@ namespace LevelLens.Runtime.Core
 
         private void Update()
         {
-            if (_telemetryTracker != null)
+            if (_isSessionActive && _telemetryTracker != null)
             {
                 _telemetryTracker.Update(Time.deltaTime);
             }
@@ -154,7 +155,9 @@ namespace LevelLens.Runtime.Core
 
         private void OnLevelReady()
         {
-            StartCoroutine(CaptureDelayedScreenshot(1.0f));
+            if (!_isSessionActive) return;
+            if (_screenshotCoroutine != null) StopCoroutine(_screenshotCoroutine);
+            _screenshotCoroutine = StartCoroutine(CaptureDelayedScreenshot(1.0f));
         }
 
         private void OnLevelWon()
@@ -225,7 +228,20 @@ namespace LevelLens.Runtime.Core
         public void DeactivateSession()
         {
             _isSessionActive = false;
+            if (_screenshotCoroutine != null)
+            {
+                StopCoroutine(_screenshotCoroutine);
+                _screenshotCoroutine = null;
+            }
+            _telemetryTracker?.ResetSession();
             CloseReviewPanel();
+        }
+
+        public void ActivateSessionAndRestart()
+        {
+            _isSessionActive = true;
+            _telemetryTracker?.ResetSession();
+            _adapter?.RestartLevel();
         }
 
         private int GetAttachedVideosCount()
@@ -287,7 +303,7 @@ namespace LevelLens.Runtime.Core
                         }
                         else
                         {
-                            _isSessionActive = true;
+                            ActivateSessionAndRestart();
                         }
                     }
                 }
@@ -906,7 +922,7 @@ namespace LevelLens.Runtime.Core
                 _showLoginDialog = false;
                 _loginPasswordInput = "";
                 _loginError = "";
-                _isSessionActive = true;
+                ActivateSessionAndRestart();
             }
             else
             {

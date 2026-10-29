@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 
 namespace LevelLens.Runtime.Core
@@ -10,6 +10,7 @@ namespace LevelLens.Runtime.Core
     public class SessionTelemetryTracker
     {
         private readonly ILevelLensAdapter _adapter;
+        private readonly Func<bool> _isSessionActive;
         private bool _isTrackingPlaytime;
         private float _activePlaytimeSeconds;
         private int _failCount;
@@ -22,9 +23,12 @@ namespace LevelLens.Runtime.Core
         public int ActivePlaytimeSeconds => Mathf.RoundToInt(_activePlaytimeSeconds);
         public float RawPlaytimeSeconds => _activePlaytimeSeconds;
 
-        public SessionTelemetryTracker(ILevelLensAdapter adapter)
+        private bool IsActive => _isSessionActive == null || _isSessionActive();
+
+        public SessionTelemetryTracker(ILevelLensAdapter adapter, Func<bool> isSessionActive = null)
         {
             _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
+            _isSessionActive = isSessionActive;
 
             _adapter.OnLevelReady += HandleLevelReady;
             _adapter.OnReviveUsed += HandleReviveUsed;
@@ -53,7 +57,7 @@ namespace LevelLens.Runtime.Core
 
         public void Update(float deltaTime)
         {
-            if (_isTrackingPlaytime && Time.timeScale > 0f)
+            if (IsActive && _isTrackingPlaytime && Time.timeScale > 0f)
             {
                 _activePlaytimeSeconds += deltaTime;
             }
@@ -61,23 +65,27 @@ namespace LevelLens.Runtime.Core
 
         private void HandleLevelReady()
         {
+            if (!IsActive) return;
             _isTrackingPlaytime = true;
         }
 
         private void HandleReviveUsed()
         {
+            if (!IsActive) return;
             _reviveCount++;
             _isTrackingPlaytime = true;
         }
 
         private void HandleLevelFailed()
         {
+            if (!IsActive) return;
             _failCount++;
             _isTrackingPlaytime = false;
         }
 
         private void HandleLevelRestarted()
         {
+            if (!IsActive) return;
             _restartCount++;
             _isTrackingPlaytime = false;
         }
