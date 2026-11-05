@@ -88,6 +88,7 @@ namespace LevelLens.Runtime.Core
         public string ApiHost => m_ApiHost;
         public string ApiKey => m_ApiKey;
         public string LatestScreenshotPath => _latestScreenshotPath;
+        public bool SuppressReviewUi { get; set; }
 
         private void Awake()
         {
@@ -196,6 +197,7 @@ namespace LevelLens.Runtime.Core
 
         public void OpenReviewPanel()
         {
+            if (SuppressReviewUi) return;
             if (string.IsNullOrEmpty(_authToken))
             {
                 _showLoginDialog = true;
@@ -266,7 +268,7 @@ namespace LevelLens.Runtime.Core
 
         private void OnGUI()
         {
-            if (!_isLevelLensActive || _adapter == null) return;
+            if (!_isLevelLensActive || _adapter == null || SuppressReviewUi) return;
 
             Matrix4x4 origMatrix = GUI.matrix;
             float refWidth = Screen.width < Screen.height ? 720f : 1280f;

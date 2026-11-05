@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LevelLens.Runtime.Network
@@ -73,6 +73,7 @@ namespace LevelLens.Runtime.Network
         public int score;                   // 1-10
         public string difficultyTag;        // Easy | Medium | Hard | Very Hard
         public string screenshotKey;        // Presigned R2 key
+        public bool withoutReport;          // True when registering level metadata & screenshot without a test report
         public int reviveCount;             // Session telemetry
         public int failCount;               // Session telemetry
         public int restartCount;            // Session telemetry
