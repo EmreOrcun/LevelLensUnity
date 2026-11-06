@@ -50,7 +50,7 @@ namespace LevelLens.Runtime.Media
 
             if (targetWidth <= 0 || targetHeight <= 0)
             {
-                CalculateAspectDimensions(1080, out targetWidth, out targetHeight);
+                CalculateAspectDimensions(800, out targetWidth, out targetHeight);
             }
 
             var hiddenCanvases = new List<Canvas>();

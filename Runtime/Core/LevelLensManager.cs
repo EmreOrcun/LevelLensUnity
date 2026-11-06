@@ -55,7 +55,7 @@ namespace LevelLens.Runtime.Core
         [SerializeField] private FloatingToggleButton m_FloatingButton;
 
         [Header("Capture Settings")]
-        [SerializeField] private int m_MaxScreenshotDimension = 1080;
+        [SerializeField] private int m_MaxScreenshotDimension = 800;
 
         private ILevelLensAdapter _adapter;
         private SessionTelemetryTracker _telemetryTracker;

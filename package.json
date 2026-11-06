@@ -1,6 +1,6 @@
 {
   "name": "com.anotherworld.levellens",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "displayName": "LevelLens",
   "description": "Project-agnostic in-game level review and QA platform for Unity games.",
   "unity": "2021.3",

@@ -133,7 +133,7 @@ namespace LevelLens.Editor
 
                 // Capture clean gameplay screenshot
                 _status = $"Capturing screenshot for {_currentIndex}/{_totalLevels}...";
-                ScreenshotCapturer.CalculateAspectDimensions(1080, out int targetW, out int targetH);
+                ScreenshotCapturer.CalculateAspectDimensions(800, out int targetW, out int targetH);
 
                 string mediaDir = Path.Combine(Application.persistentDataPath, "LevelLens", "media");
                 Directory.CreateDirectory(mediaDir);
