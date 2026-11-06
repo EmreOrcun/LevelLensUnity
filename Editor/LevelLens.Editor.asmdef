@@ -1,0 +1,19 @@
+{
+  "name": "LevelLens.Editor",
+  "rootNamespace": "LevelLens.Editor",
+  "references": [
+    "LevelLens.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
+
